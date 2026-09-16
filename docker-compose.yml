@@ -1,0 +1,157 @@
+# NEXUS-DISPATCH full stack.
+#
+#   docker compose up --build
+#
+# Brings up:
+#   - Kafka (KRaft, single node)
+#   - Redis (hot state + H3 index + reservation leases)
+#   - PostgreSQL 16 + PostGIS (durable state)
+#   - the seven Go services (gateway, driver, ride, location, dispatch,
+#     event-processor, location-processor)
+#
+# The gateway is the only exposed port (8080). All services share the
+# BACKEND_HOST=docker DNS names for gRPC.
+
+name: nexus-dispatch
+
+x-service-env: &service-env
+  KAFKA_BROKERS: kafka:9092
+  REDIS_ADDR: redis:6379
+  POSTGRES_DSN: postgres://nexus:nexus@postgres:5432/nexus?sslmode=disable
+  BACKEND_HOST: "" # overridden per-service below via *_SERVICE_GRPC_ADDR
+  JWT_SECRET: dev-only-insecure-secret-change-me
+  LEASE_TTL: 30s
+  LEASE_RENEW: 10s
+  STALE_DRIVER_AFTER: 90s
+  OTEL_EXPORTER_OTLP_ENDPOINT: "" # set to a collector to enable tracing
+
+x-service-depends: &service-depends
+  depends_on:
+    redis:
+      condition: service_healthy
+    kafka:
+      condition: service_started
+
+services:
+  # ---------------- Infrastructure ----------------
+  kafka:
+    image: apache/kafka:3.9.0
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: nexus
+      POSTGRES_DB: nexus
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # ---------------- Services ----------------
+  gateway:
+    build: .
+    command: ["/app/bin/gateway"]
+    ports:
+      - "8080:8080"
+    environment:
+      <<: *service-env
+      HTTP_ADDR: ":8080"
+      ADMIN_ADDR: ":9180"
+      DRIVER_SERVICE_GRPC_ADDR: driver-service:9001
+      RIDE_SERVICE_GRPC_ADDR: ride-service:9002
+      LOCATION_SERVICE_GRPC_ADDR: location-service:9003
+      DISPATCH_ENGINE_GRPC_ADDR: dispatch-engine:9004
+    <<: *service-depends
+
+  driver-service:
+    build: .
+    command: ["/app/bin/driver-service"]
+    environment:
+      <<: *service-env
+      GRPC_ADDR: ":9001"
+      ADMIN_ADDR: ":9101"
+    <<: *service-depends
+
+  ride-service:
+    build: .
+    command: ["/app/bin/ride-service"]
+    environment:
+      <<: *service-env
+      GRPC_ADDR: ":9002"
+      ADMIN_ADDR: ":9102"
+    <<: *service-depends
+
+  location-service:
+    build: .
+    command: ["/app/bin/location-service"]
+    environment:
+      <<: *service-env
+      GRPC_ADDR: ":9003"
+      ADMIN_ADDR: ":9103"
+    <<: *service-depends
+
+  dispatch-engine:
+    build: .
+    command: ["/app/bin/dispatch-engine"]
+    environment:
+      <<: *service-env
+      GRPC_ADDR: ":9004"
+      ADMIN_ADDR: ":9104"
+      DRIVER_SERVICE_GRPC_ADDR: driver-service:9001
+    <<: *service-depends
+
+  event-processor:
+    build: .
+    command: ["/app/bin/event-processor"]
+    environment:
+      <<: *service-env
+      ADMIN_ADDR: ":9105"
+    <<: *service-depends
+
+  location-processor:
+    build: .
+    command: ["/app/bin/location-processor"]
+    environment:
+      <<: *service-env
+      ADMIN_ADDR: ":9106"
+    <<: *service-depends
+
+volumes:
+  pgdata:

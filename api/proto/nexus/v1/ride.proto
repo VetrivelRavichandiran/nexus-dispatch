@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package nexus.v1;
+
+option go_package = "github.com/nexus-dispatch/nexus-dispatch/api/gen/nexus/v1;nexusv1";
+
+// RideService manages the ride lifecycle.
+service RideService {
+  rpc CreateRide(CreateRideRequest) returns (Ride);
+  rpc GetRide(GetRideRequest) returns (Ride);
+  rpc CancelRide(CancelRideRequest) returns (Ride);
+  rpc ListRides(ListRidesRequest) returns (ListRidesResponse);
+}
+
+enum RideState {
+  RIDE_STATE_UNSPECIFIED = 0;
+  REQUESTED = 1;
+  MATCHED = 2;
+  DRIVER_EN_ROUTE = 3;
+  ARRIVED = 4;
+  IN_PROGRESS = 5;
+  COMPLETED = 6;
+  CANCELLED = 7;
+  EXPIRED = 8;
+}
+
+message Ride {
+  string id = 1;
+  string user_id = 2;
+  string driver_id = 3;
+  RideState state = 4;
+  double pickup_lat = 5;
+  double pickup_lng = 6;
+  double dropoff_lat = 7;
+  double dropoff_lng = 8;
+  int64 created_at_ms = 9;
+  int64 updated_at_ms = 10;
+  int64 matched_at_ms = 11;
+  int64 completed_at_ms = 12;
+  string cancel_reason = 13;
+}
+
+message CreateRideRequest {
+  string user_id = 1;
+  double pickup_lat = 2;
+  double pickup_lng = 3;
+  double dropoff_lat = 4;
+  double dropoff_lng = 5;
+  // Search radius in meters (0 = default 1000).
+  int32 radius_m = 6;
+  string request_id = 7;
+}
+
+message GetRideRequest {
+  string ride_id = 1;
+}
+
+message CancelRideRequest {
+  string ride_id = 1;
+  string user_id = 2;
+  string reason = 3;
+  string request_id = 4;
+}
+
+message ListRidesRequest {
+  string user_id = 1;
+  int32 limit = 2;
+  int64 cursor_created_ms = 3;
+}
+
+message ListRidesResponse {
+  repeated Ride rides = 1;
+  int64 next_cursor_created_ms = 2;
+  bool has_more = 3;
+}

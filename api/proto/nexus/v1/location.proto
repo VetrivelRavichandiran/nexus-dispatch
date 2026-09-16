@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package nexus.v1;
+
+option go_package = "github.com/nexus-dispatch/nexus-dispatch/api/gen/nexus/v1;nexusv1";
+
+import "nexus/v1/driver.proto";
+
+// LocationService ingests GPS updates.
+service LocationService {
+  rpc UpdateLocation(UpdateLocationRequest) returns (UpdateLocationResponse);
+  // BatchUpdateLocation is used by the simulator for high-throughput ingest.
+  rpc BatchUpdateLocation(BatchUpdateLocationRequest) returns (BatchUpdateLocationResponse);
+}
+
+message UpdateLocationRequest {
+  string driver_id = 1;
+  double lat = 2;
+  double lng = 3;
+  // Monotonic per-driver sequence number. 0 = server-assigned.
+  int64 sequence = 4;
+  // Client timestamp (ms). Server stamps its own receive time too.
+  int64 client_ts_ms = 5;
+  string request_id = 6;
+}
+
+message UpdateLocationResponse {
+  bool accepted = 1;
+  int64 server_sequence = 2;
+  string h3_cell = 3;
+  // Reason when accepted=false: "stale_sequence" | "invalid_coords" | "unknown_driver"
+  string reject_reason = 4;
+}
+
+message BatchUpdateLocationRequest {
+  repeated UpdateLocationRequest updates = 1;
+  string request_id = 2;
+}
+
+message BatchUpdateLocationResponse {
+  int32 accepted = 1;
+  int32 rejected = 2;
+}

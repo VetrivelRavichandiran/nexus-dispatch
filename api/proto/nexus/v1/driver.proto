@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package nexus.v1;
+
+option go_package = "github.com/nexus-dispatch/nexus-dispatch/api/gen/nexus/v1;nexusv1";
+
+// DriverService manages driver registration, profiles, and state transitions.
+service DriverService {
+  rpc RegisterDriver(RegisterDriverRequest) returns (RegisterDriverResponse);
+  rpc GetDriver(GetDriverRequest) returns (Driver);
+  rpc UpdateDriverStatus(UpdateDriverStatusRequest) returns (UpdateDriverStatusResponse);
+  // AssignDriver is called by the Dispatch Engine after a successful reservation.
+  rpc AssignDriver(AssignDriverRequest) returns (AssignDriverResponse);
+  rpc ReleaseDriver(ReleaseDriverRequest) returns (ReleaseDriverResponse);
+}
+
+enum DriverState {
+  DRIVER_STATE_UNSPECIFIED = 0;
+  OFFLINE = 1;
+  AVAILABLE = 2;
+  RESERVED = 3;
+  ON_TRIP = 4;
+  PAUSED = 5;
+}
+
+message Vehicle {
+  string id = 1;
+  string make = 2;
+  string model = 3;
+  string plate = 4;
+  int32 seats = 5;
+}
+
+message Driver {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  Vehicle vehicle = 4;
+  DriverState state = 5;
+  double rating = 6;
+  int64 trips_completed = 7;
+  int64 created_at_ms = 8;
+  int64 updated_at_ms = 9;
+}
+
+message RegisterDriverRequest {
+  string name = 1;
+  string email = 2;
+  Vehicle vehicle = 3;
+  double initial_lat = 4;
+  double initial_lng = 5;
+}
+
+message RegisterDriverResponse {
+  Driver driver = 1;
+}
+
+message GetDriverRequest {
+  string driver_id = 1;
+}
+
+message UpdateDriverStatusRequest {
+  string driver_id = 1;
+  DriverState state = 2;
+  string request_id = 3;
+}
+
+message UpdateDriverStatusResponse {
+  DriverState previous = 1;
+  DriverState current = 2;
+}
+
+message AssignDriverRequest {
+  string driver_id = 1;
+  string ride_id = 2;
+  // Lease token won by the dispatch engine (for idempotent re-notify).
+  string lease_token = 3;
+  string request_id = 4;
+}
+
+message AssignDriverResponse {
+  DriverState state = 1;
+}
+
+message ReleaseDriverRequest {
+  string driver_id = 1;
+  string ride_id = 2;
+  string reason = 3;
+  string request_id = 4;
+}
+
+message ReleaseDriverResponse {
+  DriverState state = 1;
+}

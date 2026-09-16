@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package nexus.v1;
+
+option go_package = "github.com/nexus-dispatch/nexus-dispatch/api/gen/nexus/v1;nexusv1";
+
+import "nexus/v1/ride.proto";
+
+// DispatchService exposes the dispatch engine's matching capability.
+service DispatchService {
+  // FindCandidates performs a search without reserving (used by /drivers/nearby).
+  rpc FindCandidates(FindCandidatesRequest) returns (FindCandidatesResponse);
+  // DispatchForRide runs the full pipeline for a ride (also triggered via Kafka).
+  rpc DispatchForRide(DispatchForRideRequest) returns (DispatchForRideResponse);
+}
+
+message Candidate {
+  string driver_id = 1;
+  double lat = 2;
+  double lng = 3;
+  double distance_m = 4;
+  double score = 5;
+  double rating = 6;
+  string h3_cell = 7;
+}
+
+message FindCandidatesRequest {
+  double lat = 1;
+  double lng = 2;
+  int32 radius_m = 3;
+  int32 max_results = 4;
+  string request_id = 5;
+}
+
+message FindCandidatesResponse {
+  repeated Candidate candidates = 1;
+  int32 cells_searched = 2;
+  int32 candidates_considered = 3;
+  int64 took_ns = 4;
+}
+
+message DispatchForRideRequest {
+  string ride_id = 1;
+  string request_id = 2;
+}
+
+message DispatchForRideResponse {
+  string driver_id = 1;
+  string dispatch_id = 2;
+  bool success = 3;
+  // "no_candidates" | "all_conflicts" | "redis_unavailable" | "ok"
+  string result_code = 4;
+}
