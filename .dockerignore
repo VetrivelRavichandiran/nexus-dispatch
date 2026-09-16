@@ -1,0 +1,41 @@
+# Git & VCS
+.git
+.gitignore
+
+# Environment & secrets (never bake into images)
+.env
+.env.*
+*.pem
+*.key
+
+# Build output & binaries (rebuilt inside the image)
+/bin/
+*.exe
+*.test
+*.out
+
+# Docs & repo meta (not needed to build)
+/docs/
+.github/
+LICENSE
+README.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+*.md
+
+# Docker files (avoid self-reference)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Local scratch & data
+/tmp/
+*.log
+pgdata/

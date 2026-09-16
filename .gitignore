@@ -1,0 +1,28 @@
+# Binaries & build output
+/bin/
+*.exe
+*.test
+*.out
+
+# Go workspace / module cache (never commit)
+go.work
+go.work.sum
+
+# Environment & secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Local scratch
+/tmp/
+*.log
+
+# Docker volume data (if ever mounted into the repo)
+pgdata/
